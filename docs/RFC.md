@@ -24,11 +24,11 @@ Only the Electron main process creates browser views, applies emulation, control
 
 URL synchronization follows main-frame navigation and in-page URL changes; per-device locks prevent echoes. Scroll synchronization uses a normalized document scroll ratio because devices have different viewport and page heights. The capture listener is throttled by elapsed time rather than `requestAnimationFrame`; RAF is suspended in hidden webContents. Nested scroll containers are not covered.
 
-## RFC 005 — Supplied device frame artwork
+## RFC 005 — Parametric device frames
 
 **Status:** Accepted
 
-FramePilot maps the supplied device-frame PNGs to typed profile keys and positions each native browser viewport over the image's transparent screen aperture. Frame art is presentation-only; the native `WebContentsView` remains the interactive page surface. Orientation rotates both artwork and aperture geometry together. The frames are representative images, not exact certified device CAD models.
+FramePilot draws every device frame as parametric vector art (bezel, metal band, corner radius, camera cutout, buttons) from a per-model style, and positions each native browser viewport in the artwork's screen opening, which is exact by construction. Frame art is presentation-only; the native `WebContentsView` remains the interactive page surface. Orientation rotates both artwork and aperture geometry together. The frames are representative drawings, not exact certified device CAD models.
 
 ## RFC 006 — Apply CDP metrics after navigation begins
 

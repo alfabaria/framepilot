@@ -1,21 +1,11 @@
-export type DeviceCategory = 'desktop' | 'laptop' | 'tablet' | 'phone';
-export type DeviceFrameKey = 'desktopHd' | 'desktopFullHd' | 'laptop' | 'ipad' | 'largeTablet' | 'iphone14' | 'iphone15Pro' | 'iphoneProMax' | 'androidPhone' | 'smallMobile';
-export type DeviceChromeKind = 'none' | 'ios-phone' | 'ios-tablet' | 'android';
+import { DEVICE_PROFILES, LEGACY_PROFILE_IDS } from './device-catalog';
+import type { DeviceProfile } from './device-catalog';
+import { layoutFrame } from './frame-geometry';
+import type { FrameLayout } from './frame-geometry';
 
-export type DeviceProfile = {
-  id: string;
-  name: string;
-  category: DeviceCategory;
-  width: number;
-  height: number;
-  deviceScaleFactor: number;
-  mobile: boolean;
-  touch: boolean;
-  userAgent?: string;
-  frameKey: DeviceFrameKey;
-  /** On-screen operating-system and browser UI drawn around the page viewport inside a device frame. */
-  chrome: DeviceChromeKind;
-};
+export { DEVICE_GROUP_ORDER, DEVICE_PROFILES } from './device-catalog';
+export type { DeviceCategory, DeviceChromeKind, DeviceGroup, DeviceProfile } from './device-catalog';
+export type { DeviceFrameSpec } from './frame-geometry';
 
 export type WorkspaceDevice = {
   id: string;
@@ -29,25 +19,13 @@ export type WorkspaceDevice = {
   url: string;
 };
 
-export const DEVICE_PROFILES: readonly DeviceProfile[] = [
-  { id: 'desktop-hd', name: 'Desktop HD', category: 'desktop', width: 1440, height: 900, deviceScaleFactor: 1, mobile: false, touch: false, frameKey: 'desktopHd', chrome: 'none' },
-  { id: 'desktop-fhd', name: 'Desktop Full HD', category: 'desktop', width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false, touch: false, frameKey: 'desktopFullHd', chrome: 'none' },
-  { id: 'laptop', name: 'Laptop', category: 'laptop', width: 1366, height: 768, deviceScaleFactor: 1, mobile: false, touch: false, frameKey: 'laptop', chrome: 'none' },
-  { id: 'iphone-14', name: 'iPhone 14', category: 'phone', width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1', frameKey: 'iphone14', chrome: 'ios-phone' },
-  { id: 'iphone-15-pro', name: 'iPhone 15 Pro', category: 'phone', width: 393, height: 852, deviceScaleFactor: 3, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', frameKey: 'iphone15Pro', chrome: 'ios-phone' },
-  { id: 'iphone-pro-max', name: 'iPhone Pro Max', category: 'phone', width: 430, height: 932, deviceScaleFactor: 3, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', frameKey: 'iphoneProMax', chrome: 'ios-phone' },
-  { id: 'android-phone', name: 'Android Phone', category: 'phone', width: 412, height: 915, deviceScaleFactor: 2.625, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome} Mobile Safari/537.36', frameKey: 'androidPhone', chrome: 'android' },
-  { id: 'small-mobile', name: 'Small Mobile', category: 'phone', width: 360, height: 800, deviceScaleFactor: 2, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome} Mobile Safari/537.36', frameKey: 'smallMobile', chrome: 'android' },
-  { id: 'ipad', name: 'iPad', category: 'tablet', width: 768, height: 1024, deviceScaleFactor: 2, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', frameKey: 'ipad', chrome: 'ios-tablet' },
-  { id: 'large-tablet', name: 'Large Tablet', category: 'tablet', width: 1024, height: 1366, deviceScaleFactor: 2, mobile: true, touch: true, userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', frameKey: 'largeTablet', chrome: 'ios-tablet' },
-] as const;
-
 export const INITIAL_DEVICE_PROFILE_IDS = ['desktop-hd', 'iphone-14', 'ipad'] as const;
 export const MAX_DEVICE_COUNT = 6;
 export const MIN_DEVICE_COUNT = 1;
 
 export function getDeviceProfile(profileId: string): DeviceProfile {
-  const profile = DEVICE_PROFILES.find(({ id }) => id === profileId);
+  const resolved = LEGACY_PROFILE_IDS[profileId] ?? profileId;
+  const profile = DEVICE_PROFILES.find(({ id }) => id === resolved);
   if (!profile) throw new Error(`Unknown device profile: ${profileId}`);
   return profile;
 }
@@ -78,13 +56,18 @@ export function deviceInsets(device: Pick<WorkspaceDevice, 'profileId' | 'width'
   const none = { top: 0, right: 0, bottom: 0, left: 0 };
   if (device.frameMode !== 'device') return none;
   const landscape = orientedViewport(device).width > orientedViewport(device).height;
-  switch (getDeviceProfile(device.profileId).chrome) {
+  const profile = getDeviceProfile(device.profileId);
+  const { statusHeight, homeButton, cutout } = profile.frame;
+  switch (profile.chrome) {
     case 'ios-phone':
-      return landscape ? { top: 56, right: 0, bottom: 21, left: 56 } : { top: 54, right: 0, bottom: 88, left: 0 };
+      // Notched and island phones keep content clear of the camera cutout when held in landscape.
+      return landscape
+        ? { top: 56, right: 0, bottom: homeButton ? 0 : 21, left: cutout.kind === 'none' ? 0 : 56 }
+        : { top: statusHeight, right: 0, bottom: homeButton ? 76 : 88, left: 0 };
     case 'ios-tablet':
-      return { top: 74, right: 0, bottom: 0, left: 0 };
+      return { top: statusHeight + 50, right: 0, bottom: 0, left: 0 };
     case 'android':
-      return { top: 80, right: 0, bottom: 48, left: 0 };
+      return { top: statusHeight + 52, right: 0, bottom: homeButton ? 0 : 48, left: 0 };
     default:
       return none;
   }
@@ -104,6 +87,15 @@ export function previewDimensions(device: WorkspaceDevice, workspaceScale: numbe
   const viewport = orientedViewport(device);
   const scale = Math.max(0.25, workspaceScale * device.panelScale);
   return { width: viewport.width * scale, height: viewport.height * scale, cssWidth: viewport.width, cssHeight: viewport.height };
+}
+
+/** Frame layout for a device, or null when it is shown borderless. Landscape phones and tablets turn the portrait artwork. */
+export function layoutDeviceFrame(device: WorkspaceDevice, workspaceScale: number): FrameLayout | null {
+  if (device.frameMode !== 'device') return null;
+  const profile = getDeviceProfile(device.profileId);
+  const view = previewDimensions(device, workspaceScale);
+  const rotate = (device.orientation === 'landscape') !== (profile.width > profile.height);
+  return layoutFrame(profile.frame, view.cssWidth, view.cssHeight, view.width / view.cssWidth, rotate);
 }
 
 export function createWorkspaceDevice(profile: DeviceProfile, id: string, url = 'https://example.com'): WorkspaceDevice {

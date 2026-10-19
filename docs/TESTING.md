@@ -10,7 +10,7 @@ npm test
 npm run build
 ```
 
-The Vitest suite covers viewport orientation and display scaling, default frame modes, all ten profile-to-PNG mappings, portrait/landscape frame-aperture geometry, emulation profile properties, HTTP(S) and local-development URL normalization, normalized scroll-range boundaries, workspace defaults, and versionless-settings migration.
+The Vitest suite covers viewport orientation and display scaling, default frame modes, catalog integrity and legacy profile ids, frame-aperture geometry for every profile in portrait and landscape, camera cutouts staying inside the status bar, emulation profile properties, HTTP(S) and local-development URL normalization, normalized scroll-range boundaries, workspace defaults, and versionless-settings migration.
 
 ## Local live-browser fixture
 
@@ -32,7 +32,7 @@ It listens on `http://127.0.0.1:4179/` and reports each page's CSS viewport, DPR
 5a. Drag over a phone or tablet preview: the cursor is a touch circle, the page receives `touchstart`/`touchmove`/`touchend` with `pointerType: "touch"`, and `navigator.maxTouchPoints` is 5 (also after several navigations). On a desktop preview a drag produces only mouse pointer events.
 6. Use the fixture anchor to test URL sync. With scroll sync enabled, scroll the document and confirm normalized scroll positions track across different viewport sizes; repeat with sync disabled.
 7. Confirm the default horizontal layout places device cards side by side. Exercise grid/vertical layouts, drag reorder, per-panel resize, fit-all/fit-width/actual-size, zoom +/- and slider, frame toggle, and window resizing. Confirm off-canvas native previews do not cover the shell toolbar/sidebar/status bar.
-8. Compare all ten selected profiles to their mapped images; confirm each transparent screen opening aligns with the native browser surface in portrait and landscape and page input is not intercepted by frame decorations.
+8. Switch a device through the profile dropdown across several families (iPhone with a notch, island and home button; Pixel; Galaxy; iPad; iMac; MacBook); confirm each screen opening aligns with the native browser surface in portrait and landscape and that page input is not intercepted by frame decorations.
 9. Add a device and remove it; confirm other browser pages retain their contents. Verify the one-view minimum and six-view cap.
 10. Open DevTools for one view. Use single and all-device capture, choose an output directory, and inspect that actual PNG files are present.
 11. Navigate to an external HTTP(S) site. Verify standard navigation works and unsupported schemes/popups/downloads/permissions are blocked.

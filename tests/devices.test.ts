@@ -14,11 +14,15 @@ describe('device workspace behavior', () => {
   });
   it('reserves status-bar and browser-toolbar space so the page viewport is the screen minus device chrome', () => {
     const phone = createWorkspaceDevice(getDeviceProfile('iphone-15-pro'), 'phone-1');
-    expect(deviceInsets(phone)).toEqual({ top: 54, right: 0, bottom: 88, left: 0 });
-    expect(contentViewport(phone)).toEqual({ width: 393, height: 710 });
+    expect(deviceInsets(phone)).toEqual({ top: 59, right: 0, bottom: 88, left: 0 });
+    expect(contentViewport(phone)).toEqual({ width: 393, height: 705 });
     const landscape = { ...phone, orientation: 'landscape' as const };
     expect(deviceInsets(landscape)).toEqual({ top: 56, right: 0, bottom: 21, left: 56 });
     expect(contentViewport(landscape)).toEqual({ width: 796, height: 316 });
+    // A phone with a home button has a short status bar and no home indicator or notch safe area.
+    const classic = createWorkspaceDevice(getDeviceProfile('iphone-8'), 'phone-3');
+    expect(deviceInsets(classic)).toEqual({ top: 20, right: 0, bottom: 76, left: 0 });
+    expect(deviceInsets({ ...classic, orientation: 'landscape' })).toEqual({ top: 56, right: 0, bottom: 0, left: 0 });
   });
   it('gives desktop previews and borderless previews the full screen as viewport', () => {
     const desktop = createWorkspaceDevice(getDeviceProfile('desktop-hd'), 'desktop-1');

@@ -5,24 +5,26 @@ import {
   ArrowDownUp, ArrowLeft, ArrowRight, Camera, ChevronDown, CircleAlert, Code2, Columns2,
   Clock, Frame, Globe, Laptop, Link2, LoaderCircle, LayoutGrid, Minus, Monitor,
   PanelLeftClose, PanelLeftOpen, Plus, RotateCcwSquare, RotateCw, Rows2, Settings2, Smartphone, Sun, Moon, Tablet, X,
-} from 'lucide-react';
-import { canRotate, createWorkspaceDevice, deviceInsets, getDeviceProfile, MAX_DEVICE_COUNT, normalizeHttpUrl, previewDimensions } from '../shared/devices';
-import type { DeviceProfile, WorkspaceDevice } from '../shared/devices';
+} from './icons';
+import { canRotate, createWorkspaceDevice, DEVICE_GROUP_ORDER, deviceInsets, getDeviceProfile, layoutDeviceFrame, MAX_DEVICE_COUNT, normalizeHttpUrl, previewDimensions } from '../shared/devices';
+import type { DeviceGroup, DeviceProfile, WorkspaceDevice } from '../shared/devices';
 import type { DeviceBounds, WorkspaceSettings } from '../shared/ipc';
 import { useWorkspace } from './store';
-import { deviceFrames, layoutDeviceFrame } from './device-frames';
+import { DeviceFrameArt } from './device-frame-art';
 import { DeviceChrome } from './device-chrome';
 import { Tooltips } from './tooltip';
+import { DeviceThumb } from './device-thumb';
+import { ProfileSelect } from './profile-select';
 import { loadHistory, recordVisit, saveHistory, searchHistory } from './history';
 import type { HistoryEntry } from './history';
 import { applySavedTheme, THEME_OPTIONS, useTheme } from './theme';
 import logoDark from './assets/framepilot-logo-dark.png';
 import logoLight from './assets/framepilot-logo-light.png';
+import '@fontsource-variable/hanken-grotesk';
 import './styles.css';
 
 type FrameRef = HTMLDivElement;
 
-const CATEGORY_LABELS = { desktop: 'Desktop', laptop: 'Laptop', tablet: 'Tablet', phone: 'Phone' } as const;
 const CATEGORY_ICONS = { desktop: Monitor, laptop: Laptop, tablet: Tablet, phone: Smartphone } as const;
 const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 
@@ -106,13 +108,14 @@ function FramePilotApp() {
   const addressForm = useRef<HTMLFormElement>(null);
   const [visits, setVisits] = useState<HistoryEntry[]>(loadHistory);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [profileSelectOpen, setProfileSelectOpen] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [addressDirty, setAddressDirty] = useState(false);
   // Right after focusing the field the whole recent list is offered; once typing starts it narrows to matches.
   const suggestions = searchHistory(visits, addressDirty ? address : '');
   const historyShown = historyOpen && suggestions.length > 0;
   // Native web views draw above all DOM, so while a menu is open the previews are swapped for snapshots.
-  const overlayOpen = profileMenu !== false || settingsOpen || zoomOpen || notice !== '' || historyShown;
+  const overlayOpen = profileMenu !== false || settingsOpen || zoomOpen || notice !== '' || historyShown || profileSelectOpen;
   useDismiss(historyOpen, () => { setHistoryOpen(false); setHistoryIndex(-1); }, addressForm);
   const visitedUrl = activeRuntime?.loading ? '' : activeRuntime?.url ?? '';
   const visitedTitle = activeRuntime?.title ?? '';
@@ -187,7 +190,7 @@ function FramePilotApp() {
       // toolbar above and nothing below (tablet) the top edge must stay flat, so the bottom corners are masked instead.
       const edgeInsets = deviceInsets(device);
       const touchesBottomAndSides = device.frameMode === 'device' && edgeInsets.bottom === 0 && edgeInsets.left === 0 && edgeInsets.right === 0;
-      const radiusRatio = touchesBottomAndSides ? layoutDeviceFrame(profile.frameKey, rect.width, rect.height, rotated).radiusRatio : 0;
+      const radiusRatio = touchesBottomAndSides ? layoutDeviceFrame(device, 1)?.radiusRatio ?? 0 : 0;
       const cornerRadius = Math.min(200, radiusRatio * rect.width);
       const toolbarAbove = edgeInsets.top > 0;
       bounds.push({
@@ -231,9 +234,9 @@ function FramePilotApp() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  const profilesByCategory = useMemo(() => {
-    const groups: Record<DeviceProfile['category'], DeviceProfile[]> = { desktop: [], laptop: [], tablet: [], phone: [] };
-    for (const profile of profiles) groups[profile.category].push(profile);
+  const profilesByGroup = useMemo(() => {
+    const groups: Partial<Record<DeviceGroup, DeviceProfile[]>> = {};
+    for (const profile of profiles) (groups[profile.group] ??= []).push(profile);
     return groups;
   }, [profiles]);
 
@@ -326,11 +329,8 @@ function FramePilotApp() {
     const canvasElement = canvas.current;
     if (!canvasElement) return;
     const sizes = devices.map((device) => {
-      const profile = getDeviceProfile(device.profileId);
       const dimensions = previewDimensions({ ...device, panelScale: 1 }, 1);
-      const frame = device.frameMode === 'device'
-        ? layoutDeviceFrame(profile.frameKey, dimensions.width, dimensions.height, (device.orientation === 'landscape') !== (profile.width > profile.height))
-        : null;
+      const frame = layoutDeviceFrame({ ...device, panelScale: 1 }, 1);
       return { width: frame?.width ?? dimensions.width, height: frame?.height ?? dimensions.height, panelScale: device.panelScale };
     });
     const horizontal = layoutMode === 'horizontal';
@@ -371,11 +371,8 @@ function FramePilotApp() {
 
   function fitActiveWidth(): void {
     if (!active || !canvas.current) return;
-    const profile = getDeviceProfile(active.profileId);
     const dimensions = previewDimensions({ ...active, panelScale: 1 }, 1);
-    const frame = active.frameMode === 'device'
-      ? layoutDeviceFrame(profile.frameKey, dimensions.width, dimensions.height, (active.orientation === 'landscape') !== (profile.width > profile.height))
-      : null;
+    const frame = layoutDeviceFrame({ ...active, panelScale: 1 }, 1);
     const horizontal = layoutMode === 'horizontal';
     const width = (frame?.width ?? dimensions.width) * active.panelScale + (horizontal ? 26 : 36);
     setScale(Math.min(1, Math.max(0.25, (canvas.current.clientWidth - (horizontal ? 20 : 112)) / width)));
@@ -397,16 +394,23 @@ function FramePilotApp() {
     <button className="icon-button" aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} aria-pressed={sidebarOpen} title={`${sidebarOpen ? 'Hide' : 'Show'} sidebar (⌘B)`} onClick={() => setSidebarOpen(!sidebarOpen)}>{sidebarOpen ? <PanelLeftClose size={16} strokeWidth={1.7} /> : <PanelLeftOpen size={16} strokeWidth={1.7} />}</button>
   );
 
-  const profileMenuPanel = (
-    <div className="popover profile-menu" role="menu">
-      {(['desktop', 'laptop', 'tablet', 'phone'] as const).map((category) => (
-        <div className="profile-group" key={category} role="group" aria-label={CATEGORY_LABELS[category]}>
-          <div className="profile-group-title">{CATEGORY_LABELS[category]}</div>
-          {profilesByCategory[category].map((profile) => <button className="profile-option" role="menuitem" key={profile.id} onClick={() => void addProfile(profile.id)}><span>{profile.name}</span><small>{profile.width}×{profile.height}</small></button>)}
-        </div>
-      ))}
-    </div>
-  );
+  /** With an anchor, the menu floats below it at a readable width instead of being squeezed into the narrow sidebar. */
+  const renderProfileMenu = (anchor?: HTMLElement | null) => {
+    const rect = anchor?.getBoundingClientRect();
+    const style: CSSProperties | undefined = rect
+      ? { top: rect.bottom + 4, left: rect.left + 8, maxHeight: Math.max(200, window.innerHeight - rect.bottom - 16) }
+      : undefined;
+    return (
+      <div className={`popover profile-menu ${rect ? 'is-floating' : ''}`} style={style} role="menu">
+        {DEVICE_GROUP_ORDER.map((group) => (
+          <div className="profile-group" key={group} role="group" aria-label={group}>
+            <div className="profile-group-title">{group}</div>
+            {(profilesByGroup[group] ?? []).map((profile) => <button className="profile-option" role="menuitem" key={profile.id} onClick={() => void addProfile(profile.id)}><DeviceThumb profile={profile} /><span className="profile-name">{profile.name}</span><small>{profile.width}×{profile.height}</small></button>)}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="app-shell">
@@ -414,16 +418,19 @@ function FramePilotApp() {
         <div className="sidebar-top drag">{sidebarToggle}</div>
         <div className="sidebar-brand">
           <ThemedLogo className="brand-mark" />
-          <span className="brand-name">FramePilot</span>
+          <div className="brand-text">
+            <span className="brand-name">FramePilot</span>
+            <span className="brand-tagline">Every Screen. One Cockpit.</span>
+          </div>
         </div>
         <div className="sidebar-heading"><span>Devices</span><span>{devices.length} of {MAX_DEVICE_COUNT}</span></div>
         <div className="device-list">
-          {devices.map((device) => {
+          {devices.map((device, slot) => {
             const profile = getDeviceProfile(device.profileId);
             const state = runtime[device.id];
             const status = state?.loading ? 'loading' : state?.error ? 'error' : '';
             return (
-              <button key={device.id} className={`device-row ${activeId === device.id ? 'selected' : ''}`} aria-current={activeId === device.id ? 'true' : undefined} onClick={() => setActive(device.id)}>
+              <button key={device.id} className={`device-row ${activeId === device.id ? 'selected' : ''}`} style={{ '--slot': `var(--slot-${slot % 6})` } as CSSProperties} aria-current={activeId === device.id ? 'true' : undefined} onClick={() => setActive(device.id)}>
                 {showDeviceIcon(profile.category, 16)}
                 <span className="device-row-name">{device.name}</span>
                 {status && <span className={`state-dot ${status}`} role="img" aria-label={status === 'loading' ? 'Loading' : 'Error'} />}
@@ -434,7 +441,7 @@ function FramePilotApp() {
         </div>
         <div className="add-device-wrap" ref={addMenuRef}>
           <button className="add-device-button" disabled={devices.length >= MAX_DEVICE_COUNT} title={devices.length >= MAX_DEVICE_COUNT ? `Up to ${MAX_DEVICE_COUNT} devices` : 'Add a device'} onClick={() => setProfileMenu(profileMenu === 'sidebar' ? false : 'sidebar')} aria-expanded={profileMenu === 'sidebar'} aria-haspopup="menu"><Plus size={16} strokeWidth={1.7} /><span>Add device</span></button>
-          {profileMenu === 'sidebar' && profileMenuPanel}
+          {profileMenu === 'sidebar' && renderProfileMenu(addMenuRef.current)}
         </div>
       </aside>
 
@@ -542,28 +549,33 @@ function FramePilotApp() {
           </div>
         </header>
 
-          <div className={`workspace-canvas ${devices.length > 3 ? 'is-dense' : ''} ${layoutMode === 'horizontal' ? 'is-horizontal' : ''}`} ref={canvas}>
+          <div className={`workspace-canvas ${devices.length > 3 ? 'is-dense' : ''} ${layoutMode === 'horizontal' ? 'is-horizontal' : ''}`} ref={canvas} style={{ '--device-scale': workspaceScale } as CSSProperties}>
             <div className={`workspace-grid layout-${layoutMode}`} style={{ '--device-scale': workspaceScale, '--grid-columns': gridColumns(devices.length) } as CSSProperties}>
-              {devices.map((device) => {
+              {devices.map((device, slot) => {
                 const profile = getDeviceProfile(device.profileId);
                 const viewSize = previewDimensions(device, workspaceScale);
                 const viewport = { width: viewSize.cssWidth, height: viewSize.cssHeight };
                 const insets = deviceInsets(device);
                 const chromeScale = viewSize.width / viewport.width;
                 const state = runtime[device.id];
-                const frame = device.frameMode === 'device'
-                  ? layoutDeviceFrame(profile.frameKey, viewSize.width, viewSize.height, (device.orientation === 'landscape') !== (profile.width > profile.height))
-                  : null;
+                const frame = layoutDeviceFrame(device, workspaceScale);
                 return (
-                  <article key={device.id} className={`preview-card ${activeId === device.id ? 'is-active' : ''}`} ref={(element) => {
+                  <article key={device.id} className={`preview-card ${activeId === device.id ? 'is-active' : ''}`} style={{ '--slot': `var(--slot-${slot % 6})` } as CSSProperties} ref={(element) => {
                     const screen = element?.querySelector<HTMLDivElement>('.device-screen') ?? null;
                     setFrameRef(device.id, screen);
                   }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorderAfter(event, device.id)}>
                     <div className="preview-header" draggable onDragStart={(event) => event.dataTransfer.setData('text/framepilot-device', device.id)} onClick={() => setActive(device.id)}>
-                      <label className="title-select" title={`${device.name} · ${profile.deviceScaleFactor}× DPR · ${profile.mobile ? 'touch' : 'pointer'}`}>
-                        <select aria-label={`Device profile for ${device.name}`} value={device.profileId} onClick={(event) => event.stopPropagation()} onChange={(event) => changeProfile(device, event.target.value)}>{profiles.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-                        <ChevronDown size={12} strokeWidth={1.7} aria-hidden="true" />
-                      </label>
+                      <div className="header-main">
+                        <span className="slot-chip" aria-hidden="true" />
+                        <ProfileSelect
+                          label={`Device profile for ${device.name}`}
+                          tip={`${device.name} · ${profile.deviceScaleFactor}× DPR · ${profile.mobile ? 'touch' : 'pointer'}`}
+                          profiles={profiles}
+                          value={device.profileId}
+                          onChange={(profileId) => changeProfile(device, profileId)}
+                          onOpenChange={setProfileSelectOpen}
+                        />
+                      </div>
                       <div className="preview-actions">
                         {canRotate(profile) && <button className="icon-button" aria-label={`Rotate ${device.name}`} title="Rotate device" onClick={(event) => { event.stopPropagation(); rotateDevice(device); }}><RotateCcwSquare size={14} strokeWidth={1.7} /></button>}
                         <button className="icon-button" aria-label={`${device.frameMode === 'device' ? 'Hide' : 'Show'} frame for ${device.name}`} title={device.frameMode === 'device' ? 'Hide device frame' : 'Show device frame'} onClick={(event) => { event.stopPropagation(); toggleFrame(device); }}><Frame size={14} strokeWidth={1.7} /></button>
@@ -573,14 +585,14 @@ function FramePilotApp() {
                       </div>
                     </div>
                     <div className="device-stage" style={{ width: frame?.width ?? viewSize.width, height: frame?.height ?? viewSize.height } as CSSProperties}>
-                      {frame && <div className="device-frame-shadow" aria-hidden="true"><img className="device-frame-art" src={deviceFrames[profile.frameKey].source} alt="" draggable={false} style={{ width: frame.artworkWidth, height: frame.artworkHeight, transform: `translate(-50%, -50%) rotate(${frame.rotation}deg)` }} /></div>}
+                      {frame && <div className="device-frame-shadow" aria-hidden="true"><DeviceFrameArt className="device-frame-art" spec={profile.frame} geometry={frame.geometry} style={{ width: frame.artworkWidth, height: frame.artworkHeight, transform: `translate(-50%, -50%) rotate(${frame.rotation}deg)` }} /></div>}
                       {frame && profile.chrome !== 'none' && (
-                        <div className="device-display" style={{ left: frame.screenLeft, top: frame.screenTop, width: viewSize.width, height: viewSize.height }}>
-                          <DeviceChrome kind={profile.chrome} width={viewport.width} height={viewport.height} insets={insets} url={state?.url ?? device.url} scale={chromeScale} />
+                        <div className="device-display" style={{ left: frame.screenLeft, top: frame.screenTop, width: viewSize.width, height: viewSize.height, borderRadius: frame.geometry.screenRadius * chromeScale }}>
+                          <DeviceChrome kind={profile.chrome} frame={profile.frame} width={viewport.width} height={viewport.height} insets={insets} url={state?.url ?? device.url} scale={chromeScale} />
                         </div>
                       )}
-                      {frame && <div className="device-frame-layer" aria-hidden="true"><img className="device-frame-art" src={deviceFrames[profile.frameKey].source} alt="" draggable={false} style={{ width: frame.artworkWidth, height: frame.artworkHeight, transform: `translate(-50%, -50%) rotate(${frame.rotation}deg)` }} /></div>}
-                      <div className={`device-screen ${frame ? 'is-framed' : 'is-borderless'}`} data-device-id={device.id} style={{ left: (frame?.screenLeft ?? 0) + insets.left * chromeScale, top: (frame?.screenTop ?? 0) + insets.top * chromeScale, width: (viewport.width - insets.left - insets.right) * chromeScale, height: (viewport.height - insets.top - insets.bottom) * chromeScale }}>
+                      {frame && <div className="device-frame-layer" aria-hidden="true"><DeviceFrameArt className="device-frame-art" spec={profile.frame} geometry={frame.geometry} style={{ width: frame.artworkWidth, height: frame.artworkHeight, transform: `translate(-50%, -50%) rotate(${frame.rotation}deg)` }} /></div>}
+                      <div className={`device-screen ${frame ? 'is-framed' : 'is-borderless'}`} data-device-id={device.id} style={{ left: (frame?.screenLeft ?? 0) + insets.left * chromeScale, top: (frame?.screenTop ?? 0) + insets.top * chromeScale, width: (viewport.width - insets.left - insets.right) * chromeScale, height: (viewport.height - insets.top - insets.bottom) * chromeScale, ...(frame && profile.chrome === 'none' ? { borderRadius: frame.geometry.screenRadius * chromeScale } : {}) }}>
                         {snapshots[device.id] && <img className="device-snapshot" src={snapshots[device.id]} alt="" aria-hidden="true" draggable={false} />}
                       </div>
                     </div>
@@ -605,8 +617,8 @@ function FramePilotApp() {
                 );
               })}
               {devices.length < 3 && <div className="add-surface-wrap" ref={addSurfaceRef}>
-                <button className="add-surface" aria-expanded={profileMenu === 'canvas'} aria-haspopup="menu" onClick={() => setProfileMenu(profileMenu === 'canvas' ? false : 'canvas')}><Plus size={16} strokeWidth={1.7} />Add a device</button>
-                {profileMenu === 'canvas' && profileMenuPanel}
+                <button className="add-surface" aria-expanded={profileMenu === 'canvas'} aria-haspopup="menu" onClick={() => setProfileMenu(profileMenu === 'canvas' ? false : 'canvas')}><span className="viewfinder" aria-hidden="true">{[0, 1, 2, 3].map((corner) => <svg key={corner} viewBox="0 0 26 26"><path d="M1.5 25V13.5a12 12 0 0 1 12-12H25" /></svg>)}</span><Plus size={16} strokeWidth={1.7} />Add a device</button>
+                {profileMenu === 'canvas' && renderProfileMenu()}
               </div>}
             </div>
           </div>

@@ -23,7 +23,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/screenshot-dark.png">
-    <img src="docs/screenshots/screenshot-light.png" alt="FramePilot showing an iPhone, an iPad and an Android phone side by side" width="900">
+    <img src="docs/screenshots/screenshot-light.png" alt="FramePilot showing five iPhone and Android devices side by side on the same page" width="900">
   </picture>
 </p>
 
@@ -56,8 +56,10 @@ Each release lists a SHA-256 checksum for the DMG.
 
 - **Side-by-side devices.** Up to six at once, in horizontal, grid or stacked layouts. Drag to reorder, add and remove
   devices, and resize each panel.
-- **Realistic device frames.** Desktop, laptop, iPad and phone artwork with a status bar and browser toolbar drawn
-  inside the frame, soft shadows, and rotation for phones and tablets. A borderless mode is available too.
+- **About 100 devices with their own frames.** iPhone SE to 16 Pro Max, iPads, Galaxy S6 to S24 Ultra, Pixel to Pixel 8
+  Pro, iMac, MacBook and generic monitors. Each frame is original vector artwork drawn for that model (notch, Dynamic
+  Island, punch-hole camera or home button, bezel, finish), with a status bar and browser toolbar inside, soft shadows,
+  and rotation for phones and tablets. A borderless mode is available too.
 - **Independent browsers.** Every device has its own session, history, cookies and page state.
 - **Device emulation.** Per-profile viewport, device pixel ratio, user agent and client hints, touch emulation, and
   portrait or landscape orientation. Custom viewport sizes are supported. On phones and tablets the mouse acts as a
@@ -106,8 +108,8 @@ npm run package    # macOS DMG in dist/
 
 - `src/main/` Electron main process: windows, browser views, emulation, navigation, sync, capture, persistence, IPC validation.
 - `src/preload/` the narrow bridge exposed to the app UI.
-- `src/renderer/` the React workspace, device chrome and frame artwork.
-- `src/shared/` device profiles, workspace types and URL helpers.
+- `src/renderer/` the React workspace, device chrome and the vector frame renderer.
+- `src/shared/` the device catalog, frame geometry, workspace types and URL helpers.
 - `tests/` deterministic tests and the local browser fixture.
 - `docs/` [architecture](docs/ARCHITECTURE.md), [design decisions](docs/RFC.md), [status](docs/IMPLEMENTATION.md) and [testing](docs/TESTING.md).
 

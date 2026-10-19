@@ -1,8 +1,10 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { DeviceChromeKind, DeviceInsets } from '../shared/devices';
+import type { DeviceFrameSpec } from '../shared/frame-geometry';
 
 type Props = {
   kind: DeviceChromeKind;
+  frame: DeviceFrameSpec;
   /** Device screen in CSS pixels. */
   width: number;
   height: number;
@@ -72,20 +74,22 @@ function UrlPill({ host, compact = false }: { host: string; compact?: boolean })
   );
 }
 
-export function DeviceChrome({ kind, width, height, insets, url, scale }: Props) {
+export function DeviceChrome({ kind, frame, width, height, insets, url, scale }: Props) {
   const time = useClock();
   const host = hostOf(url);
   const landscape = width > height;
   const style: CSSProperties = { width, height, transform: `scale(${scale})` };
 
   if (kind === 'ios-phone' && !landscape) {
+    const cutout = frame.cutout;
+    const side = cutout.kind === 'none' || cutout.kind === 'punch' ? 0 : cutout.width / 2 + 18;
     return (
-      <div className="dc-root dc-ios" style={style}>
-        <div className="dc-top dc-status" style={{ height: insets.top }}><StatusIcons time={time} ios /></div>
+      <div className={`dc-root dc-ios ${frame.homeButton ? 'is-home' : ''}`} style={style}>
+        <div className="dc-top dc-status" style={{ height: insets.top, paddingTop: frame.homeButton ? 0 : Math.round(insets.top * 0.22), '--cutout-side': `${side}px` } as CSSProperties}><StatusIcons time={time} ios /></div>
         <div className="dc-bottom dc-ios-bottom" style={{ height: insets.bottom }}>
           <UrlPill host={host} />
           <div className="dc-nav-row"><Back /><Forward /><Share /><Book /><Tabs /></div>
-          <span className="dc-home-indicator" />
+          {!frame.homeButton && <span className="dc-home-indicator" />}
         </div>
       </div>
     );
@@ -107,7 +111,7 @@ export function DeviceChrome({ kind, width, height, insets, url, scale }: Props)
     return (
       <div className="dc-root dc-ios" style={style}>
         <div className="dc-top dc-tablet-top" style={{ height: insets.top }}>
-          <div className="dc-tablet-status"><span className="dc-time">{time}</span><span className="dc-status-icons"><svg width="14" height="10" viewBox="0 0 17 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M1.2 4.2a10 10 0 0 1 14.6 0M3.8 7a6.2 6.2 0 0 1 9.4 0" /><circle cx="8.5" cy="10" r="1.3" fill="currentColor" stroke="none" /></svg>100%<svg width="22" height="11" viewBox="0 0 27 13" fill="none" aria-hidden="true"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="19" height="9" rx="2.2" fill="currentColor" /></svg></span></div>
+          <div className="dc-tablet-status" style={{ flex: `0 0 ${frame.statusHeight}px` }}><span className="dc-time">{time}</span><span className="dc-status-icons"><svg width="14" height="10" viewBox="0 0 17 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M1.2 4.2a10 10 0 0 1 14.6 0M3.8 7a6.2 6.2 0 0 1 9.4 0" /><circle cx="8.5" cy="10" r="1.3" fill="currentColor" stroke="none" /></svg>100%<svg width="22" height="11" viewBox="0 0 27 13" fill="none" aria-hidden="true"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="currentColor" opacity="0.4" /><rect x="2" y="2" width="19" height="9" rx="2.2" fill="currentColor" /></svg></span></div>
           <div className="dc-toolbar dc-tablet-toolbar">
             <div className="dc-toolbar-group"><Back /><Forward /><Book /></div>
             <UrlPill host={host} compact />
@@ -121,7 +125,7 @@ export function DeviceChrome({ kind, width, height, insets, url, scale }: Props)
     return (
       <div className="dc-root dc-android" style={style}>
         <div className="dc-top" style={{ height: insets.top }}>
-          <div className="dc-status dc-android-status"><StatusIcons time={time} ios={false} /></div>
+          <div className="dc-status dc-android-status" style={{ flex: `0 0 ${frame.statusHeight}px` }}><StatusIcons time={time} ios={false} /></div>
           <div className="dc-toolbar dc-android-toolbar">
             <Home />
             <div className="dc-android-url"><span>{host}</span></div>
@@ -130,11 +134,13 @@ export function DeviceChrome({ kind, width, height, insets, url, scale }: Props)
             <Dots />
           </div>
         </div>
-        <div className="dc-bottom dc-android-nav" style={{ height: insets.bottom }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M17 4.5v15L6 12z" /></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7.5" /></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3" /></svg>
-        </div>
+        {insets.bottom > 0 && (
+          <div className="dc-bottom dc-android-nav" style={{ height: insets.bottom }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M17 4.5v15L6 12z" /></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7.5" /></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3" /></svg>
+          </div>
+        )}
       </div>
     );
   }
