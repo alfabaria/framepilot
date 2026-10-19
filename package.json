@@ -1,0 +1,102 @@
+{
+  "name": "framepilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Every Screen. One Cockpit. An open-source responsive web development browser for macOS.",
+  "license": "MIT",
+  "author": {
+    "name": "Alfa Ibrahim Daulat Baria"
+  },
+  "homepage": "https://github.com/alfabaria/framepilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alfabaria/framepilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alfabaria/framepilot/issues"
+  },
+  "keywords": [
+    "responsive",
+    "browser",
+    "electron",
+    "device-emulation",
+    "web-development",
+    "blisk-alternative"
+  ],
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "test:fixture": "vite --host 127.0.0.1 --port 4179 tests/fixtures",
+    "test:watch": "vitest",
+    "package": "npm run build && electron-builder --mac dmg --publish never"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^3.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.framepilot.desktop",
+    "productName": "FramePilot",
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "assets/framepilot.icns",
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "artifactName": "FramePilot-${version}-${arch}.${ext}",
+      "title": "FramePilot",
+      "icon": "assets/framepilot.icns",
+      "background": "assets/dmg-background.png",
+      "iconSize": 104,
+      "iconTextSize": 13,
+      "window": {
+        "width": 660,
+        "height": 400
+      },
+      "contents": [
+        {
+          "x": 180,
+          "y": 215,
+          "type": "file"
+        },
+        {
+          "x": 480,
+          "y": 215,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  },
+  "allowScripts": {
+    "electron@35.7.5": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true
+  }
+}
