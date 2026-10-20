@@ -54,4 +54,5 @@ export type FramePilotBridge = {
   onError(callback: (error: { id: string; message: string; category: string; time: number }) => void): () => void;
   onSnapshot(callback: (snapshot: DeviceSnapshot) => void): () => void;
   onFocusAddress(callback: () => void): () => void;
+  onActivate(callback: (id: string) => void): () => void;
 };

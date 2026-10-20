@@ -15,6 +15,7 @@ import { DeviceChrome } from './device-chrome';
 import { Tooltips } from './tooltip';
 import { DeviceThumb } from './device-thumb';
 import { ProfileSelect } from './profile-select';
+import { Ruler, rulerStep } from './ruler';
 import { loadHistory, recordVisit, saveHistory, searchHistory } from './history';
 import type { HistoryEntry } from './history';
 import { applySavedTheme, THEME_OPTIONS, useTheme } from './theme';
@@ -22,6 +23,11 @@ import logoDark from './assets/framepilot-logo-dark.png';
 import logoLight from './assets/framepilot-logo-light.png';
 import '@fontsource-variable/hanken-grotesk';
 import './styles.css';
+
+// The window only reserves room for the traffic lights on macOS; elsewhere the OS draws its own title bar.
+const IS_MAC = navigator.userAgent.includes('Mac');
+const MOD = IS_MAC ? '⌘' : 'Ctrl+';
+const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
 
 type FrameRef = HTMLDivElement;
 
@@ -97,6 +103,7 @@ function FramePilotApp() {
   const [snapshots, setSnapshots] = useState<Record<string, string>>({});
   const refs = useRef(new Map<string, FrameRef>());
   const canvas = useRef<HTMLDivElement>(null);
+  const [ruler, setRuler] = useState({ scrollTop: 0, height: 0, origin: 0 });
   const addressInput = useRef<HTMLInputElement>(null);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const addSurfaceRef = useRef<HTMLDivElement>(null);
@@ -104,6 +111,14 @@ function FramePilotApp() {
   const settingsRef = useRef<HTMLDivElement>(null);
   const active = devices.find((device) => device.id === activeId);
   const activeRuntime = runtime[activeId];
+  // The ruler and the wall's grid are drawn in the selected device's own CSS pixels.
+  const rulerGeometry = useMemo(() => {
+    if (!active) return { scale: workspaceScale, pageHeight: 0, slot: 0 };
+    const view = previewDimensions(active, workspaceScale);
+    const insets = deviceInsets(active);
+    return { scale: view.width / view.cssWidth, pageHeight: view.cssHeight - insets.top - insets.bottom, slot: Math.max(0, devices.indexOf(active)) % 6 };
+  }, [active, devices, workspaceScale]);
+  const gridStep = rulerStep(rulerGeometry.scale);
   // Address bar history: the newest visits, narrowed by what is typed.
   const addressForm = useRef<HTMLFormElement>(null);
   const [visits, setVisits] = useState<HistoryEntry[]>(loadHistory);
@@ -156,11 +171,14 @@ function FramePilotApp() {
       addressInput.current?.focus();
       addressInput.current?.select();
     });
+    const stopActivate = window.framePilot.onActivate((id) => {
+      if (useWorkspace.getState().devices.some((device) => device.id === id)) setActive(id);
+    });
     window.framePilot.initialize().then(hydrate).catch((error: Error) => {
       setNotice(`Workspace could not start: ${error.message}`);
     });
-    return () => { stopState(); stopError(); stopSnapshot(); stopFocusAddress(); };
-  }, [addError, hydrate, setRuntime]);
+    return () => { stopState(); stopError(); stopSnapshot(); stopFocusAddress(); stopActivate(); };
+  }, [addError, hydrate, setActive, setRuntime]);
 
   useEffect(() => {
     if (!initialized) return;
@@ -175,6 +193,11 @@ function FramePilotApp() {
     const canvasElement = canvas.current;
     if (!canvasElement || !initialized) return;
     const canvasRect = canvasElement.getBoundingClientRect();
+    // The ruler counts from the top of the selected device's page.
+    const activeScreen = refs.current.get(activeId);
+    const origin = activeScreen ? activeScreen.getBoundingClientRect().top - canvasRect.top + canvasElement.scrollTop : 0;
+    setRuler((current) => current.scrollTop === canvasElement.scrollTop && current.height === canvasElement.clientHeight && Math.abs(current.origin - origin) < 0.25
+      ? current : { scrollTop: canvasElement.scrollTop, height: canvasElement.clientHeight, origin });
     // The scrollport excludes scrollbars; a native view must lie fully inside it or it would draw over the shell.
     const area = { left: canvasRect.left, top: canvasRect.top, right: canvasRect.left + canvasElement.clientWidth, bottom: canvasRect.top + canvasElement.clientHeight };
     const bounds: DeviceBounds[] = [];
@@ -205,7 +228,7 @@ function FramePilotApp() {
       });
     }
     window.framePilot.layout(bounds).catch((error: Error) => setNotice(`Preview layout failed: ${error.message}`));
-  }, [devices, initialized, overlayOpen, workspaceScale]);
+  }, [activeId, devices, initialized, overlayOpen, workspaceScale]);
 
   useEffect(() => {
     const observer = new ResizeObserver(syncLayout);
@@ -391,7 +414,7 @@ function FramePilotApp() {
   }
 
   const sidebarToggle = (
-    <button className="icon-button" aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} aria-pressed={sidebarOpen} title={`${sidebarOpen ? 'Hide' : 'Show'} sidebar (⌘B)`} onClick={() => setSidebarOpen(!sidebarOpen)}>{sidebarOpen ? <PanelLeftClose size={16} strokeWidth={1.7} /> : <PanelLeftOpen size={16} strokeWidth={1.7} />}</button>
+    <button className="icon-button" aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} aria-pressed={sidebarOpen} title={`${sidebarOpen ? 'Hide' : 'Show'} sidebar (${MOD}B)`} onClick={() => setSidebarOpen(!sidebarOpen)}>{sidebarOpen ? <PanelLeftClose size={16} strokeWidth={1.7} /> : <PanelLeftOpen size={16} strokeWidth={1.7} />}</button>
   );
 
   /** With an anchor, the menu floats below it at a readable width instead of being squeezed into the narrow sidebar. */
@@ -446,12 +469,12 @@ function FramePilotApp() {
       </aside>
 
       <main className="workspace-main">
-        <header className={`toolbar drag ${sidebarOpen ? '' : 'is-leading'}`}>
+        <header className={`toolbar drag ${sidebarOpen || !IS_MAC ? '' : 'is-leading'}`}>
           <div className="toolbar-left">
             {!sidebarOpen && sidebarToggle}
             <button className="icon-button" aria-label="Back" title="Back" disabled={!activeRuntime?.canGoBack} onClick={() => active && window.framePilot.back(active.id)}><ArrowLeft size={16} strokeWidth={1.7} /></button>
             <button className="icon-button" aria-label="Forward" title="Forward" disabled={!activeRuntime?.canGoForward} onClick={() => active && window.framePilot.forward(active.id)}><ArrowRight size={16} strokeWidth={1.7} /></button>
-            <button className={`icon-button ${activeRuntime?.loading ? 'is-loading' : ''}`} aria-label="Reload" title="Reload (⌘R)" onClick={() => active && window.framePilot.reload(active.id)}>{activeRuntime?.loading ? <LoaderCircle size={16} strokeWidth={1.7} /> : <RotateCw size={15} strokeWidth={1.7} />}</button>
+            <button className={`icon-button ${activeRuntime?.loading ? 'is-loading' : ''}`} aria-label="Reload" title={`Reload (${MOD}R)`} onClick={() => active && window.framePilot.reload(active.id)}>{activeRuntime?.loading ? <LoaderCircle size={16} strokeWidth={1.7} /> : <RotateCw size={15} strokeWidth={1.7} />}</button>
           </div>
           <div className="toolbar-center">
             <form ref={addressForm} className="address-form" onSubmit={(event) => {
@@ -539,9 +562,9 @@ function FramePilotApp() {
                 <label className="setting-row"><span><strong>Navigation</strong><small>Open the same page on every device</small></span><input type="checkbox" checked={syncUrl} onChange={(event) => setSyncUrl(event.target.checked)} /></label>
                 <label className="setting-row"><span><strong>Scrolling</strong><small>Keep every page at the same position</small></span><input type="checkbox" checked={syncScroll} onChange={(event) => setSyncScroll(event.target.checked)} /></label>
                 <div className="shortcut-list">
-                  <div><span>Focus address</span><kbd>⌘ L</kbd></div>
-                  <div><span>Reload</span><kbd>⌘ R</kbd></div>
-                  <div><span>Toggle sidebar</span><kbd>⌘ B</kbd></div>
+                  <div><span>Focus address</span><kbd>{MOD_KEY} L</kbd></div>
+                  <div><span>Reload</span><kbd>{MOD_KEY} R</kbd></div>
+                  <div><span>Toggle sidebar</span><kbd>{MOD_KEY} B</kbd></div>
                 </div>
                 <p className="settings-note">Previews are Chromium. They emulate viewport, touch, and pixel ratio, but are not iOS Safari or physical hardware.</p>
               </div>}
@@ -549,7 +572,8 @@ function FramePilotApp() {
           </div>
         </header>
 
-          <div className={`workspace-canvas ${devices.length > 3 ? 'is-dense' : ''} ${layoutMode === 'horizontal' ? 'is-horizontal' : ''}`} ref={canvas} style={{ '--device-scale': workspaceScale } as CSSProperties}>
+          <div className="workspace-body">
+          <div className={`workspace-canvas ${devices.length > 3 ? 'is-dense' : ''} ${layoutMode === 'horizontal' ? 'is-horizontal' : ''}`} ref={canvas} style={{ '--device-scale': workspaceScale, '--cell': `${gridStep * rulerGeometry.scale}px`, '--grid-y': `${ruler.origin}px` } as CSSProperties}>
             <div className={`workspace-grid layout-${layoutMode}`} style={{ '--device-scale': workspaceScale, '--grid-columns': gridColumns(devices.length) } as CSSProperties}>
               {devices.map((device, slot) => {
                 const profile = getDeviceProfile(device.profileId);
@@ -563,8 +587,8 @@ function FramePilotApp() {
                   <article key={device.id} className={`preview-card ${activeId === device.id ? 'is-active' : ''}`} style={{ '--slot': `var(--slot-${slot % 6})` } as CSSProperties} ref={(element) => {
                     const screen = element?.querySelector<HTMLDivElement>('.device-screen') ?? null;
                     setFrameRef(device.id, screen);
-                  }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorderAfter(event, device.id)}>
-                    <div className="preview-header" draggable onDragStart={(event) => event.dataTransfer.setData('text/framepilot-device', device.id)} onClick={() => setActive(device.id)}>
+                  }} onMouseDown={() => { if (activeId !== device.id) setActive(device.id); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => reorderAfter(event, device.id)}>
+                    <div className="preview-header" draggable onDragStart={(event) => event.dataTransfer.setData('text/framepilot-device', device.id)}>
                       <div className="header-main">
                         <span className="slot-chip" aria-hidden="true" />
                         <ProfileSelect
@@ -621,6 +645,8 @@ function FramePilotApp() {
                 {profileMenu === 'canvas' && renderProfileMenu()}
               </div>}
             </div>
+          </div>
+          {active && <div style={{ '--slot': `var(--slot-${rulerGeometry.slot})`, display: 'contents' } as CSSProperties}><Ruler scrollTop={ruler.scrollTop} height={ruler.height} origin={ruler.origin} scale={rulerGeometry.scale} pageHeight={rulerGeometry.pageHeight} /></div>}
           </div>
 
         </main>

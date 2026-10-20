@@ -1,8 +1,8 @@
 {
   "name": "framepilot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Every Screen. One Cockpit. An open-source responsive web development browser for macOS.",
+  "description": "Every Screen. One Cockpit. An open-source responsive web development browser for macOS and Windows.",
   "license": "MIT",
   "author": {
     "name": "Alfa Ibrahim Daulat Baria"
@@ -31,7 +31,9 @@
     "test": "vitest run",
     "test:fixture": "vite --host 127.0.0.1 --port 4179 tests/fixtures",
     "test:watch": "vitest",
-    "package": "npm run build && electron-builder --mac dmg --publish never"
+    "package": "npm run package:mac && npm run package:win",
+    "package:mac": "npm run build && electron-builder --mac dmg --x64 --arm64 --publish never",
+    "package:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@fontsource-variable/hanken-grotesk": "^5.3.0",
@@ -93,6 +95,23 @@
           "path": "/Applications"
         }
       ]
+    },
+    "win": {
+      "icon": "assets/framepilot.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "FramePilot-${version}-${arch}-setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
     }
   },
   "allowScripts": {

@@ -10,20 +10,20 @@
 <p align="center"><strong>Every Screen. One Cockpit.</strong></p>
 
 <p align="center">
-  An open-source responsive web development browser for macOS: live, independent Chromium views of your site,
+  An open-source responsive web development browser for macOS and Windows: live, independent Chromium views of your site,
   side by side in realistic device frames. An alternative to Blisk.
 </p>
 
 <p align="center">
   <a href="https://github.com/alfabaria/framepilot/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/alfabaria/framepilot?label=download&color=2a67d9"></a>
-  <img alt="Platform: macOS" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)-lightgrey">
+  <img alt="Platform: macOS and Windows" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/screenshot-dark.png">
-    <img src="docs/screenshots/screenshot-light.png" alt="FramePilot showing five iPhone and Android devices side by side on the same page" width="900">
+    <img src="docs/screenshots/screenshot-light.png" alt="FramePilot showing five iPhone and Android devices side by side on the same page, with a ruler for the selected device" width="900">
   </picture>
 </p>
 
@@ -33,24 +33,40 @@ navigation and scrolling can stay in sync across all of them.
 
 ## Download
 
-**macOS (Apple Silicon), version 0.1.0**
+Version 0.2.0. Pick the file for your system from the [latest release](https://github.com/alfabaria/framepilot/releases/latest):
 
-1. Download `FramePilot-0.1.0-arm64.dmg` from the [latest release](https://github.com/alfabaria/framepilot/releases/latest).
-2. Open the DMG and drag **FramePilot** onto the **Applications** folder.
-3. The app is not signed or notarized yet, so macOS blocks the first launch. Right-click FramePilot in Applications,
+| System | File |
+| --- | --- |
+| macOS, Apple Silicon (M1 and later) | `FramePilot-0.2.0-arm64.dmg` |
+| macOS, Intel | `FramePilot-0.2.0-x64.dmg` |
+| Windows, 64-bit | `FramePilot-0.2.0-x64-setup.exe` |
+
+**macOS**
+
+1. Open the DMG and drag **FramePilot** onto the **Applications** folder.
+2. The app is not signed or notarized yet, so macOS blocks the first launch. Right-click FramePilot in Applications,
    choose **Open**, then confirm. If macOS still refuses, run:
 
    ```sh
    xattr -dr com.apple.quarantine /Applications/FramePilot.app
    ```
 
-Each release lists a SHA-256 checksum for the DMG.
+**Windows (early build)**
+
+1. Run the setup file and follow the installer.
+2. The installer is not code-signed yet, so Windows SmartScreen may warn about an unknown publisher. Choose
+   **More info**, then **Run anyway**.
+3. This is the first Windows build and has not been tested on a Windows machine yet. Please
+   [open an issue](https://github.com/alfabaria/framepilot/issues) if something looks off.
+
+Each release lists a SHA-256 checksum for every installer.
 
 | Platform | Status |
 | --- | --- |
 | macOS, Apple Silicon (arm64) | Supported, DMG in each release |
-| macOS, Intel (x64) | Not built yet; you can [build from source](#build-from-source) |
-| Windows, Linux | Not supported yet |
+| macOS, Intel (x64) | Supported, DMG in each release |
+| Windows (x64) | Early build, installer in each release |
+| Linux | Not supported yet |
 
 ## Features
 
@@ -80,12 +96,12 @@ Each release lists a SHA-256 checksum for the DMG.
 ## Roadmap
 
 Not implemented yet: multiple tabs, DevTools docked inside the workspace, auto-refresh on file changes, network
-throttling presets, named and saved workspaces, screenshot annotation, and Windows and Linux builds.
+throttling presets, named and saved workspaces, screenshot annotation, and a Linux build.
 [Implementation status](docs/IMPLEMENTATION.md) lists what has been verified and how.
 
 ## Build from source
 
-Requirements: macOS, Node.js 24 and npm.
+Requirements: macOS or Windows, Node.js 24 and npm. The macOS and Windows installers can both be built on a Mac.
 
 ```sh
 git clone https://github.com/alfabaria/framepilot.git
@@ -98,7 +114,9 @@ npm run dev        # run in development
 npm test           # unit tests
 npx tsc --noEmit   # type check
 npm run build      # production build
-npm run package    # macOS DMG in dist/
+npm run package:mac  # macOS DMGs (Apple Silicon and Intel) in dist/
+npm run package:win  # Windows installer in dist/
+npm run package      # both
 ```
 
 `npm run test:fixture` serves a local test page on `127.0.0.1:4179` for manual multi-device checks. See

@@ -34,6 +34,11 @@ const bridge: FramePilotBridge = {
     ipcRenderer.on('workspace:focus-address', listener);
     return () => ipcRenderer.removeListener('workspace:focus-address', listener);
   },
+  onActivate: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, id: string) => callback(id);
+    ipcRenderer.on('device:activate', listener);
+    return () => ipcRenderer.removeListener('device:activate', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('framePilot', bridge);

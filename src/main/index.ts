@@ -318,8 +318,13 @@ function configureDeviceView(device: WorkspaceDevice, view: WebContentsView): vo
     if (level >= 2) sendError(device.id, `${message} — ${sourceId}:${lineNumber}`, level === 3 ? 'error' : 'warning');
   });
   contents.on('focus', () => window?.webContents.send('device:state', { ...states.get(device.id), id: device.id }));
+  // A click inside a preview lands in its own native view, so the shell learns about it here. Focus events are not
+  // used: views take focus on their own while loading, which would override the selection.
+  contents.on('input-event', (_event, input) => {
+    if (input.type === 'mouseDown') window?.webContents.send('device:activate', device.id);
+  });
   contents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown' || !input.meta || input.key.toLowerCase() !== 'l') return;
+    if (input.type !== 'keyDown' || !(process.platform === 'darwin' ? input.meta : input.control) || input.key.toLowerCase() !== 'l') return;
     event.preventDefault();
     window?.webContents.send('workspace:focus-address');
   });
@@ -601,8 +606,8 @@ function createWindow(): void {
     title: 'FramePilot',
     backgroundColor: '#0e0f11',
     show: false,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 20, y: 17 },
+    // macOS draws its traffic lights over our toolbar; other systems keep their own title bar.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 20, y: 17 } } : { autoHideMenuBar: true }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
